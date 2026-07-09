@@ -48,3 +48,6 @@ ENV/
 env.bak/
 venv.bak/
 .vscode/
+
+# Lock files
+uv.lock

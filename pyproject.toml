@@ -1,5 +1,5 @@
 [project]
-name = "kochen"
+name = "ipyutils"
 dynamic = ["version"]
 description = "A compilation of boilerplate scribbles"
 readme = "README.md"
@@ -7,9 +7,6 @@ requires-python = ">=3.8"
 license = "LGPL-2.1-or-later"
 authors = [
   { name = "Justin Peh Yu Xiang", email = "pehyuxiang@gmail.com" },
-]
-keywords = [
-  "script", "boilerplate", "recipe",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -21,28 +18,6 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Topic :: Scientific/Engineering",
 ]
-dependencies = [
-  "configargparse",
-  "sortedcontainers",
-  "typing_extensions",
-]
-
-[project.optional-dependencies]
-dev = [
-  "pytest",
-]
-
-# Submodule dependencies
-datautil = ["numpy", "polars", "tqdm"]
-fitutil = ["numpy", "scipy", "uncertainties", "lmfit"]
-mathutil = ["numpy", "scipy", "uncertainties"]
-plotutil = ["arrow", "matplotlib"]
-all = [
-  "kochen[datautil]",
-  "kochen[fitutil]",
-  "kochen[mathutil]",
-  "kochen[plotutil]",
-]
 
 [tool.hatch.version]
 source = "versioningit"
@@ -51,17 +26,6 @@ source = "versioningit"
 requires = ["hatchling", "versioningit"]
 build-backend = "hatchling.build"
 
-[tool.ruff]
-extend-exclude = ["src/kochen/recipe"]
-
-[tool.ruff.lint]
-ignore = [
-  "F811",  # redefinitions expected for back-compatibility
-  "F403",  # enable wildcard import to override submodule namespace with '.latest'
-]
-
 [tool.pyright]
 include = ["src"]
-exclude = ["src/kochen/recipe"]
 typeCheckingMode = "standard"
-reportRedeclaration = false
