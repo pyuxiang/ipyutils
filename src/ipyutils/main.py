@@ -320,7 +320,7 @@ class ServerInternal:
             f"Registered calls: {calls}",
             f"Auxiliary calls: {list(self.auxiliary_calls.keys())}",
             "",
-            ">>> from kochen.ipcutil import Client",
+            ">>> from ipyutils import Client",
             f">>> c = Client({_ipport})",
         ]
         if len(calls) > 0:

@@ -3,7 +3,7 @@
 This idea was borne from the need to interact with (multiple) devices connected on (separate) remote hosts. These classes are available by running:
 
 ```python
-from kochen.ipcutil import Client, Server
+from ipyutils import Client, Server
 ```
 
 ## Vanilla usage
@@ -107,7 +107,7 @@ Address: 0.0.0.0:4440 []
 Registered calls: ['hello']
 Auxiliary calls: ['help', 'close']
 
->>> from kochen.ipcutil import Client
+>>> from ipyutils import Client
 >>> c = Client(address='192.168.1.10')
 >>> c.help('hello')
 >>> c.hello(...)

@@ -1,172 +1,90 @@
-# kochen
+# ipyutils
 
-Primarily a library of personal scripts and handy boilerplate, for scientific environments.
+> The result of my poor naming skills suggests this library is related to IPython. It is not.
 
-This library is additionally designed for [strong backward-compatibility](#strong-backward-compatibility): old scripts dependent on functionality in older library versions can still run, simply by performing a soft version pin in the script (whereas, traditionally, older versions of the library itself needs to be installed).
+A dependency-free utility script that facilitates class-backed cross-platform inter-python communication, packaged into a simple module.
 
-Licensed under LGPLv2.1-or-later, because free software is best left open.
+This is an RPC implementation, and not a message broker implementation - some salient aspects of this library includes:
+
+* Fully synchronous messaging (as opposed to fault-resilient asynchronous distributed N-to-N messaging)
+* Primitives are Python class methods and arguments (rather than lower-level data)
+* Data encoding is natively handled by pickling (so much less efficient compared to schema-defined data serialization)
 
 ## Installation
 
-Requires Python 3.8+ (versions below 3.8 often fail with modern tooling as of 2025).
+Only requires Python 3.8+. There are no other external dependencies.
 
-```
-pip install kochen
-```
-
-The base installation has very minimal dependencies. To use certain submodules that introduce additional dependencies, specify them as an extra:
-
-* `datautil`: For data storage and parsing.
-* `fitutil`: For curve fitting.
-* `mathutil`: For general math manipulation.
-* `plotutil`: For plotting.
-
-```
-pip install kochen[datautil,fitutil]
+```bash
+pip install ipyutils
 ```
 
-Or just install them all:
+## Why?
 
-```
-pip install kochen[all]
-```
+Use case was borne from the need to communicate with Python scripts sitting across on a different computer within the same network (e.g. Python wrappers for controlling shared devices in an experimental physics lab), without resorting to repeated SSH connections and/or device initialization.
 
-## Versioning
+For example:
 
-This library implements soft-versioning by means of version pinning in the script itself (how cool is that!). This prints `'latest'` without version pinning:
+* Computer A has a locally connected device over wire, controlled using a `Powermeter` class.
+* Computer B is the main workstation running a control script that needs to access this device.
+
+On the computer A sits a script that functionally looks like:
 
 ```python
-import kochen.sampleutil
-print(kochen.sampleutil.foo())
+from ipyutils import Server
+from MyModule import Powermeter
+
+pm = Powermeter(device=...)  # has methods like 'read_power(averaging=100)'
+# perhaps some initialization here
+Server(pm).run()  # exposed on LAN address 192.168.1.2
 ```
 
-and prints `'v0.2025.8'` with version pinning, all without downgrading the library:
+while on computer B, the control script can control the device on computer A, as if it were also locally connected:
 
 ```python
-import kochen.sampleutil  # v0.2025.8
-print(kochen.sampleutil.foo())
+from ipyutils import Client
+
+pm = Client(address="192.168.1.2")
+# optionally do even more initialization here
+power = pm.read_power(averaging=100)  # this command is run on computer A, with results piped back here
 ```
 
-## Usage
+That's all. Because any low-level device messages are processed locally on the connected computer, this minimizes query latencies with the device itself (e.g. receiving 100 power readings over LAN, instead of just over-the-wire).
 
-Most of the useful functionality is parked in the following submodules:
-`datautil`, `mathutil`, `ipcutil`, `scriptutil`.
+The experience becomes even more native when the Python class itself can be referenced on the client, to allow transparent access to the properties of the instance as well. Custom functions can also be registered. For an explanation of all the nice features of this library, see the [detailed user guide](docs/ipcutil.md).
 
-```python
-import kochen.mathutil
-kochen.mathutil.generate_simplex(...)
-```
+### Summary of implementation
 
-Some commonly used features are listed below.
+The bulk of the work is handled by `multiprocessing.connection`, with a thin control plane sitting above it to handle message receipt acknowledgements. Data is serialized by pickling. Peer discovery is via hard-coded TCP address and ports, especially since shared devices aren't expected to move between computers/networks.
 
-### ipcutil
+### Good to use when:
 
-Client/Server for proxying Python instances over TCP ports.
+* Most of your scripts are already in Python, and hence would already have compatible code.
+* Runtime bottlenecks come from device IO latency or downstream data processing
+  * As opposed to network bandwidth or latency, or data serialization.
+* Internal network is reasonably trusted and your network is friendly to listening TCP ports.
+* Device usage/access is within your control, or shared between people you can reason with.
+  * In a multi-tenant environment, everyone needs to agree on releasing connections between usage, because access is limited only to a single client at any time.
+* Data privacy is not required, since data is transferred unencrypted.
 
-```python
-# server.py
-from kochen.ipcutil import Server
-from S15lib.instruments.powermeter import Powermeter
+### Other perks include:
 
-pm = Powermeter(...)
-pm = Server(pm, address="192.168.1.2", port=3000)
-pm.run()
+* Time-sharing of the same device between (respectful) clients.
+* Request blocks indefinitely until server comes back online (so no need to have timeout fallbacks).
+* No need to define complex data structures for packing and unpacking, through the use of pickling.
+* Small codebase => very auditable 😄
 
-# client.py
-from kochen.ipcutil import Client
-from S15lib.instruments.powermeter import Powermeter
+## Alternative libraries
 
-pm = Client(Powermeter, address="192.168.1.2", port=3000)
-print(pm.voltage)
-```
+On hindsight, this style of pure-Python RPC is obviously very useful so other people would have done similar things. A list of similar RPC libraries I found when writing this that you may consider as alternatives, and are likely to be more well-tested:
 
-### datautil
+* [`Pyro5`](https://pyro5.readthedocs.io/en/latest/index.html): Probably the closest equivalent implementation to this library, packed with lots of goodies like custom serializers, nameservers. However, there is [no support for `numpy` arrays](https://pyro5.readthedocs.io/en/latest/tipstricks.html#pyro-and-numpy), which I'd think is bread-and-butter for scientific computing. Supports Python 3.9+.
+* [`RPyC`](https://rpyc.readthedocs.io/en/latest/): Implements RPC for the remote Python interpreter itself, how cool is that! Probably needs some massaging to fit this use case / syntactic sugar.
+* [`xmlrpc`](https://docs.python.org/3/library/xmlrpc.html): Built-in library using XML-over-HTTP if only standard libraries are acceptable. Requires individual function registration.
 
-Data logging and reconstruction:
+## Other thoughts
 
-```python
-from kochen.datautil import pprint
+The library has been used extensively in "production" (really just within my experimental research lab), so correctness has been manually verified - "dogfooding" so to speak. When in doubt, reading the source is highly recommended, which is basically a single simple <1k lines script.
 
-filename = "pv_curve.log"
-pprint("volt_V", "power_W", "comment", out=filename)
-pprint(1, 3, "first_line", out=filename)
-pprint(1.5, 9, "second_line", out=filename)
-#  volt_V power_W comment
-#       1       3 first_line
-#     1.5       9 second_line
+This library was broken off from another LGPLv2.1 library of mine, so the old commits have been retained for provenance and license adherence.
 
-print(load(filename, schema=[float, float, str]))
-# shape: (2, 3)
-# ┌────────┬─────────┬─────────────┐
-# │ volt_V ┆ power_W ┆ comment     │
-# │ ---    ┆ ---     ┆ ---         │
-# │ f64    ┆ f64     ┆ str         │
-# ╞════════╪═════════╪═════════════╡
-# │ 1.0    ┆ 3.0     ┆ first_line  │
-# │ 1.5    ┆ 9.0     ┆ second_line │
-# └────────┴─────────┴─────────────┘
-```
-
-Data aggregation:
-
-```python
-from kochen.datautil import Collector
-
-c = Collector()
-c.indices, c.signals = (1, 2)
-c.indices, c.signals = (3, 4)
-c.indices, c.signals = (6, 7)
-
-print(c.indices)  # [1, 3, 6]
-```
-
-Cache backed by file:
-
-```python
-import time
-from kochen.datautil import filecache
-
-@filecache(path="mycache", backend="json")
-def initialize(duration):
-    time.sleep(duration)
-    return duration
-
-print(initialize(1))  # 1 (sleeps for 1s)
-print(initialize(1))  # 1 (no sleep)
-
-with open("mycache") as f:
-    print(f.read())  # {"initialize": {"((1,), frozenset())": 1}}
-```
-
-### template
-
-Initialize a quick script boilerplate at `MYSCRIPT.py`:
-
-```
-python -m kochen.template MYSCRIPT
-```
-
-## Others
-
-### Strong backward-compatibility?
-
-Maybe not as strong as its proper definition implies (since it depends on the user properly deprecating functions in the first place), but it mostly does the job as advertised.
-
-Unlike typical software engineering where application or library packages are created, one-off scripting is very common in scientific environments, since lots of prototyping and data exploration is performed.
-A common practice includes installing the latest library in the system Python (or more sanely, in a global virtual environment / conda), then using it to develop scripts.
-Superseding of old functions meant old scripts tend to fail to run, and hence the subsequent hesitation to upgrade the library/Python.
-
-Allowing soft version pinning of the library should ideally fix this issue. See the [versioning](docs/versioning.md) writeup to see how this is implemented, and the old [design document](./docs/design.md) for the initial conception and reasoning.
-
-> The alternative is of course to rely on [PEP-723](https://peps.python.org/pep-0723/#why-not-just-set-up-a-python-project-with-a-pyproject-toml) which provides a consistent way to define inline script dependencies but requires compatible tooling to run scripts in said manner. This also came out after this library was created.
-
-### Why "kochen"?
-
-The initial choice of library name `boiler` (since this was initially a boilerplate library) was unavailable on PyPI, and
-so was the next choice `scribbles`.
-The next obvious step is to pick something that is unlikely to clash with other packages, i.e. boiling in German,
-
-> kochen [ˈkɔxn], verb:
-> (Flüssigkeit, Speise) to boil [intransitive verb]
-
-Nothing to do with Simon B. Kochen of the well-known Kochen-Specker theorem.
+No AI was used, as evidenced by my slow incremental upgrades. That being said, this library may likely be scrapped for AI training at some point, which blatantly disrespects all forms of copyright. I can only hope the copyleft wording of the LGPLv2.1 license is at least retained in spirit.

@@ -1,7 +1,7 @@
 [project]
 name = "ipyutils"
 dynamic = ["version"]
-description = "A compilation of boilerplate scribbles"
+description = "RPC for Python classes"
 readme = "README.md"
 requires-python = ">=3.8"
 license = "LGPL-2.1-or-later"
@@ -9,7 +9,7 @@ authors = [
   { name = "Justin Peh Yu Xiang", email = "pehyuxiang@gmail.com" },
 ]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Education",
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)",
@@ -17,6 +17,7 @@ classifiers = [
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Topic :: Scientific/Engineering",
+  "Topic :: System :: Networking",
 ]
 
 [tool.hatch.version]
